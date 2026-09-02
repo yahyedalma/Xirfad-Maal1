@@ -1,0 +1,9 @@
+import { createClient } from '@supabase/supabase-js';
+
+export default async function CoursePage({params}:{params:Promise<{id:string}>}){
+ const {id}=await params; const url=process.env.NEXT_PUBLIC_SUPABASE_URL; const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+ let course:any=null; let lessons:any[]=[];
+ if(url&&key){const sb=createClient(url,key); const [c,l]=await Promise.all([sb.from('courses').select('*').eq('id',id).maybeSingle(),sb.from('lessons').select('id,title,order_num,is_locked,duration,description').eq('course_id',id).order('order_num')]); course=c.data; lessons=l.data||[];}
+ if(!course)return <main className="section"><div className="container"><h1>Koorsada lama helin</h1><a className="btn btn-primary" href="/courses">Ku noqo koorsooyinka</a></div></main>;
+ return <main><header className="nav"><div className="container nav-inner"><a href="/" className="brand">Xirfad <span>Maal</span> Academy</a><a className="btn btn-ghost" href="/courses">← Koorsooyinka</a></div></header><section className="section"><div className="container"><span className="eyebrow">KOORSO</span><h1 style={{fontSize:48,letterSpacing:'-2px',margin:'16px 0 10px'}}>{course.title}</h1><p className="muted" style={{maxWidth:760,lineHeight:1.7}}>{course.description}</p><div className="hero-card" style={{marginTop:30}}><h2>Casharrada koorsada</h2>{lessons.length===0?<p className="muted">Casharrada weli lama gelin.</p>:lessons.map((l,i)=><div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 0',borderBottom:'1px solid rgba(255,255,255,.07)'}}><div><strong>{i+1}. {l.title}</strong><div className="muted" style={{fontSize:13,marginTop:5}}>{l.duration||'Cashar'}{l.is_locked?' • 🔒 Xiran':''}</div></div><span className="muted">{l.is_locked?'Locked':'Available'}</span></div>)}</div></div></section></main>;
+}
