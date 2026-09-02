@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './animations.css';
+import './admin/website/website.css';
 
 export const metadata: Metadata = {
   title: 'Xirfad Maal Academy',
