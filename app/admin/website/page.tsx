@@ -1,7 +1,6 @@
 'use client';
 
 import '../admin.css';
-import './website.css';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Globe2, Save, Sparkles } from 'lucide-react';
