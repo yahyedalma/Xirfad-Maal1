@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Users, Award, Plus, LogOut, ShieldCheck } from 'lucide-react';
+import { Award, BarChart3, BookOpen, FolderOpen, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Users, UserRound, Video } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 type Course = { id: string; title: string; description: string | null; original_price: number | null; discounted_price: number | null };
@@ -15,18 +15,20 @@ export default function AdminPage() {
   const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [price, setPrice] = useState('0'); const [discount, setDiscount] = useState('0');
   const [saving, setSaving] = useState(false); const [error, setError] = useState('');
 
+  const supabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
+
   async function load() {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
-    const { data: auth } = await supabase.auth.getUser();
+    const sb = supabase();
+    const { data: auth } = await sb.auth.getUser();
     if (!auth.user) { router.replace('/login'); return; }
-    const { data: p } = await supabase.from('profiles').select('role').eq('id', auth.user.id).single();
+    const { data: p } = await sb.from('profiles').select('role').eq('id', auth.user.id).single();
     const ok = p?.role === 'ADMIN' || p?.role === 'OWNER'; setAuthorized(ok);
     if (!ok) return;
     const [{ data: c }, { count: users }, { count: enrollments }, { count: certificates }] = await Promise.all([
-      supabase.from('courses').select('id,title,description,original_price,discounted_price').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('enrollments').select('id', { count: 'exact', head: true }),
-      supabase.from('certificates').select('id', { count: 'exact', head: true }),
+      sb.from('courses').select('id,title,description,original_price,discounted_price').order('created_at', { ascending: false }),
+      sb.from('profiles').select('id', { count: 'exact', head: true }),
+      sb.from('enrollments').select('id', { count: 'exact', head: true }),
+      sb.from('certificates').select('id', { count: 'exact', head: true }),
     ]);
     setCourses(c ?? []); setCounts({ users: users ?? 0, enrollments: enrollments ?? 0, certificates: certificates ?? 0 });
   }
@@ -35,23 +37,21 @@ export default function AdminPage() {
 
   async function addCourse(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError('');
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
-    const { error } = await supabase.from('courses').insert({ title: title.trim(), description: description.trim(), original_price: Number(price) || 0, discounted_price: Number(discount) || 0 });
-    if (error) setError(error.message); else { setTitle(''); setDescription(''); setPrice('0'); setDiscount('0'); await load(); }
+    const sb = supabase();
+    const { error: insertError } = await sb.from('courses').insert({ title: title.trim(), description: description.trim(), original_price: Number(price) || 0, discounted_price: Number(discount) || 0 });
+    if (insertError) setError(insertError.message); else { setTitle(''); setDescription(''); setPrice('0'); setDiscount('0'); await load(); }
     setSaving(false);
   }
 
-  async function logout() { const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!); await supabase.auth.signOut(); router.replace('/'); }
+  async function logout() { await supabase().auth.signOut(); router.replace('/'); }
 
-  if (authorized === null) return <main className="section"><div className="container"><div className="hero-card">Hubinaya maamulka...</div></div></main>;
+  if (authorized === null) return <main className="admin-loading"><div className="admin-loader">Hubinaya maamulka...</div></main>;
   if (!authorized) return <main className="section"><div className="container"><div className="hero-card"><h2>Maamulka waa xiran yahay</h2><p className="muted">Akoonkan ma laha ADMIN ama OWNER role.</p><a className="btn btn-primary" href="/dashboard">Ku noqo dashboard</a></div></div></main>;
 
-  return <main className="section"><div className="container">
-    <div className="dash-top"><div><span className="eyebrow"><ShieldCheck size={14}/> ADMIN PANEL</span><h1 style={{margin:'14px 0 4px'}}>Xirfad Maal maamulka</h1><p className="muted">Maamul koorsooyinka iyo xogta LMS-ka.</p></div><button className="btn btn-ghost" onClick={logout}><LogOut size={16}/> Ka bax</button></div>
-    <div className="dash-stats"><div className="feature"><Users/><h3>{counts.users}</h3><p>Users</p></div><div className="feature"><BookOpen/><h3>{courses.length}</h3><p>Koorsooyin</p></div><div className="feature"><Users/><h3>{counts.enrollments}</h3><p>Enrollments</p></div><div className="feature"><Award/><h3>{counts.certificates}</h3><p>Certificates</p></div></div>
-    <section className="section" style={{paddingBottom:0}}><div className="hero-card"><h2 style={{marginTop:0}}>Ku dar koorso</h2><form onSubmit={addCourse} style={{display:'grid',gap:12}}><input placeholder="Magaca koorsada" required value={title} onChange={e=>setTitle(e.target.value)} style={field}/><textarea placeholder="Sharaxaad" rows={4} value={description} onChange={e=>setDescription(e.target.value)} style={field}/><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><input type="number" min="0" placeholder="Qiimaha" value={price} onChange={e=>setPrice(e.target.value)} style={field}/><input type="number" min="0" placeholder="Qiimaha dhimista" value={discount} onChange={e=>setDiscount(e.target.value)} style={field}/></div>{error && <p style={{color:'#fda4af'}}>{error}</p>}<button className="btn btn-primary" disabled={saving} type="submit"><Plus size={16}/>{saving?'Kaydinaya...':'Ku dar koorso'}</button></form></div></section>
-    <section className="section" style={{paddingBottom:0}}><div className="section-head"><div><h2>Koorsooyinka</h2><p className="muted">Koorsooyinka hadda ku jira database-ka.</p></div></div><div className="course-grid">{courses.map(c=><article className="course" key={c.id}><div className="course-cover"><BookOpen size={18}/> XIRFAD MAAL ACADEMY</div><div className="course-body"><h3>{c.title}</h3><p>{c.description || 'Sharaxaad lama gelin.'}</p><div className="price"><strong>{Number(c.discounted_price ?? 0) === 0 ? 'FREE' : `$${c.discounted_price}`}</strong><a className="btn btn-ghost" href={`/courses/${c.id}`}>Fur</a></div></div></article>)}</div></section>
-  </div></main>;
+  const menu = [['Dashboard', LayoutDashboard], ['Courses', BookOpen], ['Categories', FolderOpen], ['Students', Users], ['Instructors', UserRound], ['Enrollments', BarChart3], ['Lessons', Video], ['Certificates', Award], ['Settings', Settings]] as const;
+  return <main className="admin-shell"><aside className="admin-sidebar"><div className="admin-brand"><span className="brand-mark">✦</span><span><b>Xirfad Maal</b><small>ACADEMY</small></span></div><div className="admin-menu">{menu.map(([label,Icon],i)=><a className={i===0?'selected':''} href={i===0?'#':`#${label.toLowerCase()}`} key={label}><Icon size={16}/>{label}</a>)}</div><button className="admin-logout" onClick={logout}><LogOut size={16}/> Logout</button></aside><section className="admin-main"><header className="admin-top"><div><span className="section-kicker">ADMIN CONTROL CENTER</span><h1>Admin Dashboard</h1><p>Welcome back, Admin 👋</p></div><div className="admin-user"><span>Search anything...</span><strong>Admin</strong></div></header>
+    <div className="dash-stats admin-stats"><div className="feature"><Users/><small>Arday Guud</small><h3>{counts.users}</h3><b>↗ Active users</b></div><div className="feature"><BookOpen/><small>Courses</small><h3>{courses.length}</h3><b>↗ Live courses</b></div><div className="feature"><UserRound/><small>Instructors</small><h3>20+</h3><b>↗ Teaching team</b></div><div className="feature"><Award/><small>Certificates</small><h3>{counts.certificates}</h3><b>↗ Issued</b></div></div>
+    <div className="admin-grid"><section className="admin-panel"><div className="panel-head"><div><h2>Ku dar Course</h2><p>Course cusub ku geli database-ka.</p></div><Plus size={20}/></div><form onSubmit={addCourse} className="admin-form"><input placeholder="Magaca koorsada" required value={title} onChange={e=>setTitle(e.target.value)}/><textarea placeholder="Sharaxaad kooban" rows={4} value={description} onChange={e=>setDescription(e.target.value)}/><div className="form-two"><input type="number" min="0" placeholder="Qiimaha" value={price} onChange={e=>setPrice(e.target.value)}/><input type="number" min="0" placeholder="Qiimaha dhimista" value={discount} onChange={e=>setDiscount(e.target.value)}/></div>{error&&<p className="form-error">{error}</p>}<button className="btn btn-primary" disabled={saving}>{saving?'Kaydinaya...':'Publish Course'}</button></form></section><section className="admin-panel"><div className="panel-head"><div><h2>Activity Overview</h2><p>Enrollment trend</p></div><span className="chart-pill">Last 7 months</span></div><div className="fake-chart"><div className="chart-line"><span/><span/><span/><span/><span/><span/><span/></div><div className="chart-axis"><small>Jan</small><small>Feb</small><small>Mar</small><small>Apr</small><small>May</small><small>Jun</small><small>Jul</small></div></div><div className="enroll-total">{counts.enrollments}<span>Total enrollments</span></div></section></div>
+    <section className="admin-panel courses-admin"><div className="panel-head"><div><h2>Courses</h2><p>Koorsooyinka ku jira database-ka.</p></div><a className="btn btn-primary" href="#courses">Manage Courses</a></div><div className="admin-course-list">{courses.map(c=><article key={c.id}><div className="admin-course-icon">{c.title.slice(0,2).toUpperCase()}</div><div><b>{c.title}</b><span>{c.description || 'Sharaxaad lama gelin.'}</span></div><strong>{Number(c.discounted_price??0)===0?'Free':`$${c.discounted_price}`}</strong><a className="btn btn-outline" href={`/courses/${c.id}`}>View</a></article>)}</div></section>
+  </section></main>;
 }
-
-const field={width:'100%',padding:'13px 14px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)',background:'#091525',color:'white',outline:'none'};
