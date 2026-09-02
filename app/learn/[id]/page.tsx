@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Home, LockKeyhole, Menu, PlayCircle, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, CheckCircle2, Clock3, Home, LockKeyhole, Menu, PartyPopper, PlayCircle, X } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import './learn.css';
 
@@ -32,6 +32,8 @@ export default function LessonPage() {
   const [progress, setProgress] = useState<ProgressRow[]>([]);
   const [enrollment, setEnrollment] = useState<{ id: string } | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [certificateReady, setCertificateReady] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,10 +56,14 @@ export default function LessonPage() {
       setLessons(orderedLessons);
       setEnrollment(enrollmentRes.data ?? null);
       if (enrollmentRes.data) {
-        const { data: p } = await supabase.from('lesson_progress').select('lesson_id,completed').eq('enrollment_id', enrollmentRes.data.id);
-        const rows = (p ?? []) as ProgressRow[];
+        const [progressRes, certificateRes] = await Promise.all([
+          supabase.from('lesson_progress').select('lesson_id,completed').eq('enrollment_id', enrollmentRes.data.id),
+          supabase.from('certificates').select('id').eq('enrollment_id', enrollmentRes.data.id).eq('revoked', false).maybeSingle(),
+        ]);
+        const rows = (progressRes.data ?? []) as ProgressRow[];
         setProgress(rows);
         setCompleted(rows.some((row) => row.lesson_id === l.id && row.completed));
+        setCertificateReady(Boolean(certificateRes.data));
       }
       setLoading(false);
     })();
@@ -69,7 +75,29 @@ export default function LessonPage() {
     const { data: auth } = await supabase.auth.getUser();
     const { error } = await supabase.from('lesson_progress').upsert({ enrollment_id: enrollment.id, lesson_id: lesson.id, student_profile_id: auth.user?.id, completed: true, completed_at: new Date().toISOString() }, { onConflict: 'enrollment_id,lesson_id' });
     if (error) setMessage(error.message);
-    else { setCompleted(true); setProgress((items) => [...items.filter((item) => item.lesson_id !== lesson.id), { lesson_id: lesson.id, completed: true }]); setMessage('Casharkan waa la dhammaystiray ✓'); }
+    else {
+      const nextProgress = [...progress.filter((item) => item.lesson_id !== lesson.id), { lesson_id: lesson.id, completed: true }];
+      setCompleted(true);
+      setProgress(nextProgress);
+      setMessage('Casharkan waa la dhammaystiray ✓');
+
+      const isLastLesson = lessons.length > 0 && lessons.every((item) => nextProgress.some((p) => p.lesson_id === item.id && p.completed));
+      if (isLastLesson) {
+        // The database trigger creates the certificate only after 100% completion.
+        // Read the authoritative certificate row before showing the success state.
+        const { data: certificate } = await supabase.from('certificates').select('id').eq('enrollment_id', enrollment.id).eq('revoked', false).maybeSingle();
+        if (certificate) {
+          setCertificateReady(true);
+          setShowCelebration(true);
+        } else {
+          const { data: refreshedEnrollment } = await supabase.from('enrollments').select('status').eq('id', enrollment.id).maybeSingle();
+          if (refreshedEnrollment?.status === 'completed') {
+            const { data: retryCertificate } = await supabase.from('certificates').select('id').eq('enrollment_id', enrollment.id).eq('revoked', false).maybeSingle();
+            if (retryCertificate) { setCertificateReady(true); setShowCelebration(true); }
+          }
+        }
+      }
+    }
   }
 
   const currentIndex = useMemo(() => lessons.findIndex((item) => item.id === id), [lessons, id]);
@@ -104,6 +132,7 @@ export default function LessonPage() {
       {menuOpen && <button className="learn-overlay" aria-label="Xir menu" onClick={() => setMenuOpen(false)}/>} 
 
       <section className="learn-content">
+        {certificateReady && <div className="learn-certificate-strip"><Award size={18}/><div><b>Shahaadadaadu waa diyaar 🎉</b><span>Waxaad dhammaystirtay koorsadan.</span></div><a href="/certificates">Eeg shahaadada <ArrowRight size={14}/></a></div>}
         <div className="learn-breadcrumb"><a href={`/courses/${lesson.course_id}`}><ArrowLeft size={14}/> Koorsada</a><span>/</span><span>Cashar {currentIndex + 1}</span></div>
         <div className="learn-title-row"><div><span className="learn-eyebrow">CASHAR {currentIndex + 1} OF {lessons.length || 1}</span><h1>{lesson.title}</h1><p>{lesson.description || 'Casharkan si fiican u daawo, kadibna calaamadee inuu dhammaaday.'}</p></div><div className="learn-time"><Clock3 size={15}/>{lesson.duration || 'Online'}</div></div>
 
@@ -115,5 +144,16 @@ export default function LessonPage() {
         <div className="learn-navigation"><div>{previous && <a href={`/learn/${previous.id}`} className="learn-nav-card"><ArrowLeft size={18}/><span><small>Casharkii hore</small><b>{previous.title}</b></span></a>}</div><div>{next && <a href={`/learn/${next.id}`} className="learn-nav-card next"><span><small>Casharka xiga</small><b>{next.title}</b></span><ArrowRight size={18}/></a>}</div></div>
       </section>
     </div>
+
+    {showCelebration && <div className="learn-celebration-backdrop" role="dialog" aria-modal="true">
+      <div className="learn-celebration-card">
+        <button className="learn-celebration-close" onClick={() => setShowCelebration(false)} aria-label="Xir"><X size={18}/></button>
+        <div className="learn-celebration-icon"><PartyPopper size={30}/></div>
+        <div className="learn-celebration-eyebrow">COURSE COMPLETED</div>
+        <h2>Hambalyo! 🎉</h2>
+        <p>Waxaad si buuxda u dhammaystirtay <strong>{course?.title || 'koorsada'}</strong>. Shahaadadaada ayaa hadda si automatic ah loo sameeyay.</p>
+        <div className="learn-celebration-actions"><a className="btn btn-primary" href="/certificates"><Award size={17}/> Eeg Shahaadadayda</a><button className="learn-secondary-btn" onClick={() => setShowCelebration(false)}>Sii wad</button></div>
+      </div>
+    </div>}
   </main>;
 }
