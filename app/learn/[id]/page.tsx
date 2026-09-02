@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Award, CheckCircle2, Clock3, Home, LockKeyhole, Menu, PartyPopper, PlayCircle, X } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import './learn.css';
+import './learn-enhancements.css';
 
 type Lesson = { id: string; course_id: string; title: string; description: string | null; youtube_url: string | null; duration: string | null; is_locked: boolean | null; published: boolean | null; order_num: number | null };
 type Course = { id: string; title: string; image_url: string | null };
@@ -83,8 +84,6 @@ export default function LessonPage() {
 
       const isLastLesson = lessons.length > 0 && lessons.every((item) => nextProgress.some((p) => p.lesson_id === item.id && p.completed));
       if (isLastLesson) {
-        // The database trigger creates the certificate only after 100% completion.
-        // Read the authoritative certificate row before showing the success state.
         const { data: certificate } = await supabase.from('certificates').select('id').eq('enrollment_id', enrollment.id).eq('revoked', false).maybeSingle();
         if (certificate) {
           setCertificateReady(true);
