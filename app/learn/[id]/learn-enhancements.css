@@ -1,0 +1,5 @@
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes learnIn{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes celebrateFade{from{opacity:0}to{opacity:1}}
+@keyframes celebratePop{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes celebrateFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
