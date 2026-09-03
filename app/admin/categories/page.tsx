@@ -20,7 +20,12 @@ export default function CategoriesAdmin() {
 
   async function guard() { const { data: { user } } = await supabase.auth.getUser(); if (!user) { window.location.href='/login'; return false; } const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single(); if (!profile || !['ADMIN','OWNER'].includes(profile.role)) { window.location.href='/dashboard'; return false; } return true; }
   async function load() { setLoading(true); const [{ data: cats, error: ce }, { data: crs, error: re }] = await Promise.all([supabase.from('categories').select('*').order('created_at',{ascending:true}),supabase.from('courses').select('id,category_id')]); if(ce||re)setError(ce?.message||re?.message||'Failed to load categories.'); const refs=(crs||[]) as CourseRef[]; setCategories(((cats||[]) as Category[]).map(c=>({...c,courseCount:refs.filter(r=>r.category_id===c.id).length}))); setLoading(false); }
-  useEffect(()=>{guard().then(ok=>ok&&load())},[]);
+  useEffect(() => {
+    void (async () => {
+      const ok = await guard();
+      if (ok) await load();
+    })();
+  }, []);
   const filtered=useMemo(()=>categories.filter(c=>`${c.name} ${c.slug} ${c.icon}`.toLowerCase().includes(search.toLowerCase())),[categories,search]);
   const autoSlug=(v:string)=>v.trim().toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-');
   function openCreate(){setEditing(null);setForm({name:'',slug:'',icon:'BookOpen'});setError('');setModalOpen(true)}
